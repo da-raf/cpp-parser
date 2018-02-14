@@ -40,19 +40,21 @@ ref = reference + pp.Optional(volatility)
 value_expression = pp.Forward()
 #value_expression <<= identifier | 
 
+signer = pp.Keyword('unsigned') | pp.Keyword('signed')
+signable = pp.Keyword('char') | pp.Keyword('short') | pp.Keyword('int') \
+         | pp.Keyword('long') | pp.Keyword('float') | pp.Keyword('double')
+base_type = (pp.Optional(signer) + signable) | signer | pp.Keyword('void')
+base_type.setParseAction( lambda tokens: ' '.join(tokens) )
+
 # all type names
 #
 # type expressions can be recursive due to templates
-# TODO: do not suppress struct, union and class keywords
+# TODO: don't suppress hierarchical type
 type_expression = pp.Forward()
 type_expression <<= (pp.ZeroOrMore(persistency | volatility).setParseAction(
-                    lambda tokens: sum(tokens) # collapse all bitmasks into a single one
+                    sum # collapse all bitmasks into a single one
                 )('args') \
-                + pp.Group(
-                    (pp.Optional(pp.Keyword('unsigned') | pp.Keyword('signed')) \
-                        + (pp.Keyword('double') | pp.Keyword('int') | pp.Keyword('short') | pp.Keyword('float') \
-                        |  pp.Keyword('char') | pp.Keyword('unsigned') | pp.Keyword('signed') | pp.Keyword('void'))).setParseAction( lambda tokens: ' '.join(tokens) ) \
-                | (pp.Optional(hierarchical_type).suppress() + identifier + pp.ZeroOrMore(pp.Literal('::') + identifier)).setParseAction( lambda tokens: ''.join(tokens) ))('name') \
+                + pp.Group(base_type | (pp.Optional(hierarchical_type).suppress() + identifier + pp.ZeroOrMore(pp.Literal('::') + identifier)).setParseAction( lambda tokens: ''.join(tokens) ))('name') \
                 + pp.Optional(
                       pp.Literal('<').suppress() \
                     + csl(type_expression + pp.ZeroOrMore(ref), 1) \
