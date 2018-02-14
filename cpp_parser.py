@@ -26,7 +26,7 @@ destructor_tag    = pp.Literal('~'      ).setParseAction( pp.replaceWith(Functio
 abstract_function = (pp.Literal('=') + pp.Literal('0')).setParseAction( pp.replaceWith(FunctionArgs.ABSTRACT_FUNCTION))
 inline_function   = pp.Keyword('inline').setParseAction( pp.replaceWith(FunctionArgs.INLINE_FUNCTION) )
 
-complex_type = pp.Keyword('class' ).setParseAction(pp.replaceWith(CppComplexTypeDefinition.CLASS )) \
+hierarchical_type = pp.Keyword('class' ).setParseAction(pp.replaceWith(CppComplexTypeDefinition.CLASS )) \
              | pp.Keyword('struct').setParseAction(pp.replaceWith(CppComplexTypeDefinition.STRUCT)) \
              | pp.Keyword('union' ).setParseAction(pp.replaceWith(CppComplexTypeDefinition.UNION ))
 
@@ -51,7 +51,7 @@ type_expression <<= (pp.ZeroOrMore(persistency | volatility).setParseAction(
                     (pp.Optional(pp.Keyword('unsigned') | pp.Keyword('signed')) \
                         + (pp.Keyword('double') | pp.Keyword('int') | pp.Keyword('float') \
                         |  pp.Keyword('char') | pp.Keyword('unsigned') | pp.Keyword('signed') | pp.Keyword('void'))).setParseAction( lambda tokens: ' '.join(tokens) ) \
-                | (pp.Optional(complex_type).suppress() + identifier + pp.ZeroOrMore(pp.Literal('::') + identifier)).setParseAction( lambda tokens: ''.join(tokens) ))('name') \
+                | (pp.Optional(hierarchical_type).suppress() + identifier + pp.ZeroOrMore(pp.Literal('::') + identifier)).setParseAction( lambda tokens: ''.join(tokens) ))('name') \
                 + pp.Optional(
                       pp.Literal('<').suppress() \
                     + csl(type_expression + pp.ZeroOrMore(ref), 1) \
@@ -105,28 +105,28 @@ fun_def = fun_decl('fdecl') \
         + get_scope('{', '}')
 fun_def.setParseAction( build_function_definition )
 
+hierarchical_type_decl = hierarchical_type('struct_type') + identifier('name')
+
 decl = fun_decl | var_decl_list
 
 visibility = pp.Keyword('private'  ).setParseAction( pp.replaceWith( CppComplexTypeDefinition.VISIBILITY_PRIVATE   ) ) \
            | pp.Keyword('public'   ).setParseAction( pp.replaceWith( CppComplexTypeDefinition.VISIBILITY_PUBLIC    ) ) \
            | pp.Keyword('protected').setParseAction( pp.replaceWith( CppComplexTypeDefinition.VISIBILITY_PROTECTED ) )
 
-visibility_space = pp.Group(visibility + pp.Literal(':').suppress() + pp.ZeroOrMore(fun_def | (decl + pp.Literal(';').suppress())))
+visibility_space = pp.Group(visibility + pp.Literal(':').suppress() + pp.ZeroOrMore(fun_def | (decl + pp.Literal(';').suppress()) | (identifier + pp.Literal(';'))))
 
 inheritance = pp.Optional(visibility)('visibility') + identifier('base_class_name')
 inheritance.setParseAction(lambda res: CppInheritance(res.base_class_name, res.visibility if len(res) != 0 else CppComplexTypeDefinition.VISIBILITY_DEFAULT))
 
-complex_type_decl = complex_type('struct_type') + identifier('name')
-
 type_def = pp.Keyword('typedef') + type_expression('expr') + identifier('name')
 type_def.setParseAction(lambda res: CppTypeDefinition(res.expr[0], res.name))
 
-complex_type_def   = pp.Forward()
-complex_type_def <<= pp.Optional(visibility) + complex_type_decl('decl') + \
+hierarchical_type_def   = pp.Forward()
+hierarchical_type_def <<= pp.Optional(visibility) + hierarchical_type_decl('decl') + \
               pp.Optional(pp.Group(pp.Literal(':').suppress() + csl(inheritance)))('base_classes') \
             + pp.Literal('{') \
                 + pp.Group(pp.ZeroOrMore(fun_def | (decl + pp.Literal(';').suppress())))('default_vis_space') \
                 + pp.ZeroOrMore(visibility_space)('vis_spaces') \
             + pp.Literal('}')
-complex_type_def.setParseAction(build_complex_type)
+hierarchical_type_def.setParseAction(build_complex_type)
 
