@@ -90,7 +90,8 @@ class CppFunctionDeclaration:
         return bool(self.args & FunctionArgs.CONST_FUNCTION)
 
     def isConstructor(self):
-        return bool(self.args & FunctionArgs.CONSTRUCTOR_FUNCTION)
+        return bool(self.args & FunctionArgs.CONSTRUCTOR_FUNCTION) \
+                and not bool(self.args & FunctionArgs.DESTRUCTOR_FUNCTION)
 
     def isDestructor(self):
         return bool(self.args & FunctionArgs.DESTRUCTOR_FUNCTION)
@@ -111,4 +112,8 @@ class CppClass:
         self.fields = fields
         self.member_functions = member_functions
         self.inheritances = inheritances
+
+class CppEnumTypeDefiniton:
+    def __init__(self, name):
+        self.name = name
 
