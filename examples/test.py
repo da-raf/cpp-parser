@@ -1,10 +1,16 @@
+import sys; sys.path.append('..')
+
+import os.path
+
 import cpp_printer
 import cpp_parser
 import cpp_lang
 
+fg_dir = '../fg/flightgear'
+
 # load source file
 source_code = '\n'.join(
-    open('/home/farad/Programmieren/fg/flightgear/src/Input/FGEventInput.hxx')
+    open(os.path.join(fg_dir, 'src/Input/FGEventInput.hxx'))
 )
 
 # remove comments and preprocessor directives from the code
@@ -19,3 +25,4 @@ for cl in classes:
     print()
     if type(cl[0]) == cpp_lang.CppComplexTypeDefinition:
         print(printer.complex_type_str(cl[0]))
+
