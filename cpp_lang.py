@@ -41,6 +41,9 @@ class CppTypeExpression:
         # if this type is a template type, this will contain the template argument values
         self.template_args = template_args
 
+    def content_name(self):
+        return self.type_name
+
 class CppPointerTypeExpression:
     POINTER_VAR   = 1
     REFERENCE_VAR = 2
@@ -49,6 +52,9 @@ class CppPointerTypeExpression:
         self.inner_type = inner_type
         self.ref_type = ref_type
         self.ref_volatility = ref_volatility
+
+    def content_name(self):
+        return self.inner_type.content_name()
 
 class CppTypeDefinition:
     def __init__(self, type_expr, type_name):
