@@ -50,7 +50,7 @@ type_expression <<= (pp.ZeroOrMore(persistency | volatility).setParseAction(
                 )('args') \
                 + pp.Group(
                     (pp.Optional(pp.Keyword('unsigned') | pp.Keyword('signed')) \
-                        + (pp.Keyword('double') | pp.Keyword('int') | pp.Keyword('float') \
+                        + (pp.Keyword('double') | pp.Keyword('int') | pp.Keyword('short') | pp.Keyword('float') \
                         |  pp.Keyword('char') | pp.Keyword('unsigned') | pp.Keyword('signed') | pp.Keyword('void'))).setParseAction( lambda tokens: ' '.join(tokens) ) \
                 | (pp.Optional(hierarchical_type).suppress() + identifier + pp.ZeroOrMore(pp.Literal('::') + identifier)).setParseAction( lambda tokens: ''.join(tokens) ))('name') \
                 + pp.Optional(
@@ -131,6 +131,7 @@ hierarchical_type_def <<= pp.Optional(visibility) + hierarchical_type_decl('decl
             + pp.Literal('{') \
                 + pp.Group(pp.ZeroOrMore(fun_def | (decl + pp.Literal(';').suppress())))('default_vis_space') \
                 + pp.ZeroOrMore(visibility_space)('vis_spaces') \
+                + pp.SkipTo(pp.Literal('}'), ignore=get_scope('{','}')) \
             + pp.Literal('}')
 hierarchical_type_def.setParseAction(build_hierarchical_type)
 
