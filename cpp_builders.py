@@ -71,11 +71,13 @@ def build_hierarchical_type(res):
     member_vars = []
     methods = []
 
+    base_types = res.base_classes if res.base_classes else []
+
     for dec in res.default_vis_space:
         if type(dec) == CppVarDeclaration:
-            member_vars.append(CppMember(CppHierarchicalTypeDefinition.VISIBILITY_DEFAULT, dec))
+            member_vars.append(CppMember(dec, CppHierarchicalTypeDefinition.VISIBILITY_DEFAULT))
         elif type(dec) == CppFunctionDeclaration or type(dec) == CppFunctionDefinition:
-            methods.append(CppMember(CppHierarchicalTypeDefinition.VISIBILITY_DEFAULT, dec))
+            methods.append(CppMember(dec, CppHierarchicalTypeDefinition.VISIBILITY_DEFAULT))
 
     for vs in res.vis_spaces:
         visib = vs[0]
@@ -86,5 +88,5 @@ def build_hierarchical_type(res):
                 methods.append(CppMember(dec, visib))
 
 
-    return CppHierarchicalTypeDefinition(res.decl.struct_type, res.decl.name, base_types=res.base_classes, member_variables=member_vars, member_functions=methods)
+    return CppHierarchicalTypeDefinition(res.decl.struct_type, res.decl.name, base_types=base_types, member_variables=member_vars, member_functions=methods)
 
