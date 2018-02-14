@@ -6,7 +6,7 @@ import cpp_printer
 import cpp_parser
 import cpp_lang
 
-fg_dir = '../fg/flightgear'
+fg_dir = '/home/farad/Ohjelmoiminen/fg/flightgear'
 
 # load source file
 source_code = '\n'.join(
@@ -17,12 +17,12 @@ source_code = '\n'.join(
 stripped_source = (cpp_parser.comment | cpp_parser.preprocessor).suppress().transformString(source_code)
 
 printer = cpp_printer.CppPrinter()
-classes = (cpp_parser.complex_type_def | cpp_parser.complex_type_decl).searchString(stripped_source)
+classes = (cpp_parser.hierarchical_type_def | cpp_parser.hierarchical_type_decl).searchString(stripped_source)
 
 print('found %d classes:' % len(classes))
 
 for cl in classes:
     print()
-    if type(cl[0]) == cpp_lang.CppComplexTypeDefinition:
-        print(printer.complex_type_str(cl[0]))
+    if type(cl[0]) == cpp_lang.CppHierarchicalTypeDefinition:
+        print(printer.hierarchical_type_str(cl[0]))
 

@@ -1,5 +1,5 @@
 
-# builder functions for the more complex types
+# builder functions for the hierarchical types
 
 from cpp_lang import *
 
@@ -67,15 +67,15 @@ def build_function( parse_result ):
 def build_function_definition(res):
     return CppFunctionDefinition(res.fdecl)
 
-def build_complex_type(res):
+def build_hierarchical_type(res):
     member_vars = []
     methods = []
 
     for dec in res.default_vis_space:
         if type(dec) == CppVarDeclaration:
-            member_vars.append(CppMember(CppComplexTypeDefinition.VISIBILITY_DEFAULT, dec))
+            member_vars.append(CppMember(CppHierarchicalTypeDefinition.VISIBILITY_DEFAULT, dec))
         elif type(dec) == CppFunctionDeclaration or type(dec) == CppFunctionDefinition:
-            methods.append(CppMember(CppComplexTypeDefinition.VISIBILITY_DEFAULT, dec))
+            methods.append(CppMember(CppHierarchicalTypeDefinition.VISIBILITY_DEFAULT, dec))
 
     for vs in res.vis_spaces:
         visib = vs[0]
@@ -86,5 +86,5 @@ def build_complex_type(res):
                 methods.append(CppMember(dec, visib))
 
 
-    return CppComplexTypeDefinition(res.decl.struct_type, res.decl.name, base_types=res.base_classes, member_variables=member_vars, member_functions=methods)
+    return CppHierarchicalTypeDefinition(res.decl.struct_type, res.decl.name, base_types=res.base_classes, member_variables=member_vars, member_functions=methods)
 

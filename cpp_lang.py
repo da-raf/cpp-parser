@@ -7,7 +7,7 @@ class TypeArgs:
     VOLATILE_TYPE = 2
     STATIC_TYPE = 4
 
-class CppComplexTypeDefinition:
+class CppHierarchicalTypeDefinition:
     DEFAULT = 0
     CLASS   = 1
     STRUCT  = 2
@@ -18,8 +18,8 @@ class CppComplexTypeDefinition:
     VISIBILITY_PROTECTED = 2
     VISIBILITY_PUBLIC = 3
 
-    def __init__(self, complex_type, name, base_types=[], member_variables=[], member_functions=[]):
-        self.complex_type = complex_type
+    def __init__(self, hierarchical_type, name, base_types=[], member_variables=[], member_functions=[]):
+        self.hierarchical_type = hierarchical_type
         self.name = name
         self.base_types = base_types
         self.member_variables = member_variables
@@ -72,7 +72,7 @@ class CppInheritance:
         self.base_id = base_class_id
 
 class CppMember:
-    def __init__(self, member_decl, visibility=CppComplexTypeDefinition.VISIBILITY_DEFAULT):
+    def __init__(self, member_decl, visibility=CppHierarchicalTypeDefinition.VISIBILITY_DEFAULT):
         self.member_decl = member_decl
         self.vis = visibility
 

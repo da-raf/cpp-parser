@@ -4,6 +4,7 @@
 from cpp_lang import *
 
 class CppPrinter:
+
     def declaration_str(self, declaration):
         return self.type_expr_str(declaration.data_type) + ' ' + self.identifier_str(declaration.identifier)
 
@@ -79,9 +80,9 @@ class CppPrinter:
         return 'typedef' + ' ' + self.type_expr_str(typedef.type_expr) + ' ' + typedef.type_name
 
     def visibility_str(self, visibility):
-        return 'private'   if visibility == CppComplexTypeDefinition.VISIBILITY_PRIVATE   else \
-               'public'    if visibility == CppComplexTypeDefinition.VISIBILITY_PUBLIC    else \
-               'protected' if visibility == CppComplexTypeDefinition.VISIBILITY_PROTECTED else \
+        return 'private'   if visibility == CppHierarchicalTypeDefinition.VISIBILITY_PRIVATE   else \
+               'public'    if visibility == CppHierarchicalTypeDefinition.VISIBILITY_PUBLIC    else \
+               'protected' if visibility == CppHierarchicalTypeDefinition.VISIBILITY_PROTECTED else \
                ''
 
     def volatility_str(self, volatility):
@@ -89,30 +90,30 @@ class CppPrinter:
                'volatile' if volatility == TypeArgs.VOLATILE_TYPE else \
                ''
 
-    def complex_type_prefix_str(self, complex_type_prefix):
-        return 'struct' if complex_type_prefix == CppComplexTypeDefinition.STRUCT else \
-               'class'  if complex_type_prefix == CppComplexTypeDefinition.CLASS  else \
-               'union'  if complex_type_prefix == CppComplexTypeDefinition.UNION  else \
+    def hierarchical_type_prefix_str(self, hierarchical_type_prefix):
+        return 'struct' if hierarchical_type_prefix == CppHierarchicalTypeDefinition.STRUCT else \
+               'class'  if hierarchical_type_prefix == CppHierarchicalTypeDefinition.CLASS  else \
+               'union'  if hierarchical_type_prefix == CppHierarchicalTypeDefinition.UNION  else \
                ''
 
-    def complex_type_str(self, complex_type):
-        prefix_str = self.complex_type_prefix_str(complex_type.complex_type)
-        name_str = complex_type.name
+    def hierarchical_type_str(self, hierarchical_type):
+        prefix_str = self.hierarchical_type_prefix_str(hierarchical_type.hierarchical_type)
+        name_str = hierarchical_type.name
         
-        if complex_type.base_types:
-            inherits = [self.inheritance_str(i) for i in complex_type.base_types[0]]
+        if hierarchical_type.base_types:
+            inherits = [self.inheritance_str(i) for i in hierarchical_type.base_types[0]]
         else:
             inherits = []
 
-        default_vars   = ['\t' + self.declaration_str(m.member_decl) + ';' for m in complex_type.member_variables if m.vis == CppComplexTypeDefinition.VISIBILITY_DEFAULT]
-        public_vars    = ['\t' + self.declaration_str(m.member_decl) + ';' for m in complex_type.member_variables if m.vis == CppComplexTypeDefinition.VISIBILITY_PUBLIC]
-        protected_vars = ['\t' + self.declaration_str(m.member_decl) + ';' for m in complex_type.member_variables if m.vis == CppComplexTypeDefinition.VISIBILITY_PROTECTED]
-        private_vars   = ['\t' + self.declaration_str(m.member_decl) + ';' for m in complex_type.member_variables if m.vis == CppComplexTypeDefinition.VISIBILITY_PRIVATE]
+        default_vars   = ['\t' + self.declaration_str(m.member_decl) + ';' for m in hierarchical_type.member_variables if m.vis == CppHierarchicalTypeDefinition.VISIBILITY_DEFAULT]
+        public_vars    = ['\t' + self.declaration_str(m.member_decl) + ';' for m in hierarchical_type.member_variables if m.vis == CppHierarchicalTypeDefinition.VISIBILITY_PUBLIC]
+        protected_vars = ['\t' + self.declaration_str(m.member_decl) + ';' for m in hierarchical_type.member_variables if m.vis == CppHierarchicalTypeDefinition.VISIBILITY_PROTECTED]
+        private_vars   = ['\t' + self.declaration_str(m.member_decl) + ';' for m in hierarchical_type.member_variables if m.vis == CppHierarchicalTypeDefinition.VISIBILITY_PRIVATE]
 
-        default_meths   = ['\t' + self.function_decl_str(m.member_decl) + ';' for m in complex_type.member_functions if m.vis == CppComplexTypeDefinition.VISIBILITY_DEFAULT]
-        public_meths    = ['\t' + self.function_decl_str(m.member_decl) + ';' for m in complex_type.member_functions if m.vis == CppComplexTypeDefinition.VISIBILITY_PUBLIC]
-        protected_meths = ['\t' + self.function_decl_str(m.member_decl) + ';' for m in complex_type.member_functions if m.vis == CppComplexTypeDefinition.VISIBILITY_PROTECTED]
-        private_meths   = ['\t' + self.function_decl_str(m.member_decl) + ';' for m in complex_type.member_functions if m.vis == CppComplexTypeDefinition.VISIBILITY_PRIVATE]
+        default_meths   = ['\t' + self.function_decl_str(m.member_decl) + ';' for m in hierarchical_type.member_functions if m.vis == CppHierarchicalTypeDefinition.VISIBILITY_DEFAULT]
+        public_meths    = ['\t' + self.function_decl_str(m.member_decl) + ';' for m in hierarchical_type.member_functions if m.vis == CppHierarchicalTypeDefinition.VISIBILITY_PUBLIC]
+        protected_meths = ['\t' + self.function_decl_str(m.member_decl) + ';' for m in hierarchical_type.member_functions if m.vis == CppHierarchicalTypeDefinition.VISIBILITY_PROTECTED]
+        private_meths   = ['\t' + self.function_decl_str(m.member_decl) + ';' for m in hierarchical_type.member_functions if m.vis == CppHierarchicalTypeDefinition.VISIBILITY_PRIVATE]
 
         defaults   = default_vars   + default_meths
         publics    = public_vars    + public_meths
