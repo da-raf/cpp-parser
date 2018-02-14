@@ -6,90 +6,139 @@ import cpp_lang
 import os
 
 
-def is_basetype(type_name):
-    c_base_types = ['int', 'float', 'double', 'long', 'char', 'bool']
+c_base_types = ['int', 'float', 'double', 'long', 'char', 'bool', 'size_t']
 
+def is_basetype(type_name):
     return type_name in c_base_types or type_name.startswith('std::')
 
-def filecontent2dot(source_file):
-    res = []
+c_file_extensions = ['h', 'hxx', 'hpp', 'c', 'cxx', 'cpp', 'C']
+def is_source_file(file_name):
+    for extns in c_file_extensions:
+        if file_name.endswith('.' + extns):
+            return True
+    return False
 
-    source_code = '\n'.join(open(source_file))
+def filecontent(source_file):
+    class_list = []
+    deriv_list = []
+    links_list = []
+
+    source_code = ''.join(open(source_file))
 
     # remove comments and preprocessor directives from the code
     stripped_source = (cpp_parser.comment | cpp_parser.preprocessor).suppress().transformString(source_code)
-
     classes = (cpp_parser.hierarchical_type_def | cpp_parser.hierarchical_type_decl).searchString(stripped_source)
+    typedefs = cpp_parser.type_def.searchString(stripped_source)
 
     for cl in classes:
         if len(cl) == 1:
             c = cl[0]
         else:
-            c = cl
+            print('WARNING: received raw parsing result in %s' % source_file)
+            continue
+            #c = cl
 
         if not c.name:
             print('WARNING: no class name! file: %s: %s' % (source_file, repr(c)))
             continue
 
-        res.append('"%s" [shape=box];' % c.name)
+        class_list.append(c.name)
 
         for deriv in c.base_types:
             if not deriv.base_id:
                 print('WARNING: no class name of base class! %s:%s' % (source_file, c.name))
             else:
-                res.append('"%s" -> "%s" [arrowhead=onormal];' % (c.name, deriv.base_id))
+                deriv_list.append( (c.name, deriv.base_id) )
+
         for member in c.member_variables:
             if not member.member_decl:
                 print('WARNING: missing member declaration! %s:%s' % (source_file, c.name))
             else:
                 member_type_name = member.member_decl.data_type.content_name()
                 if not is_basetype(member_type_name):
-                    res.append('"%s" -> "%s";' % (c.name, member_type_name))
+                    links_list.append( (c.name, member_type_name) )
 
-    return res
+    for td in typedefs:
+        # unpack
+        td = td[0]
 
-def do_file(file_path, out_stream):
-    ls = filecontent2dot( file_path )
+        class_list.append( td.type_name )
+        try:
+            deriv_list.append( (td.type_name, td.type_expr.content_name()) )
+        except AttributeError:
+            print('WARNING: received raw parsing data in typedef expression "%s"->"%s" in file "%s"' % (td.type_expr, td.type_name, source_file))
+            pass
+    
+    return (class_list, deriv_list, links_list)
 
-    if len(ls) == 0:
-        return
+def filecontent2dot(source_file):
+    (class_list, deriv_list, assoc_list) = filecontent(source_file)
+
+    class_dot = ['"%s" [shape=box];' % cn for cn in class_list]
+    deriv_dot = ['"%s" -> "%s" [arrowhead=onormal];' % (bn, bcn) for (bn, bcn) in deriv_list]
+    assoc_dot = ['"%s" -> "%s";' % (cn, acn) for (cn, acn) in assoc_list]
+
+    # concatenate list of dot links
+    # we can treat them identically from now on, since we already did the formatting
+    return (class_dot, deriv_dot + assoc_dot)
+
+def do_file(file_path):
+    (classes_dot, links_dot) = filecontent2dot( file_path )
+
+    if len(classes_dot) == 0:
+        return ([], [])
 
     # open file's subgraph
-    out_stream.write('\tsubgraph "cluster_%s" {\n' % os.path.basename(file_path))
-    out_stream.write('\t\tlabel = "%s";\n'         % os.path.basename(file_path))
+    file_dot = [
+            'subgraph "cluster_%s" {' % os.path.basename(file_path),
+            '\tlabel = "%s";'         % os.path.basename(file_path)
+    ] + ['\t'+class_dot for class_dot in classes_dot] + ['}']
 
-    for l in ls:
-        out_stream.write('\t\t%s\n' % l)
-
-    # close file's subgraph
-    out_stream.write('\t}\n')
+    return (file_dot, links_dot)
 
 
-def do_dir(dir_root, out_stream):
-    for (dir_path, dir_names, file_names) in os.walk(dir_root):
-        # open directory subgraph
-        out_stream.write('\tsubgraph "cluster_%s" {\n' % dir_path)
-        out_stream.write('\tlabel = "%s";\n' % dir_path)
+def do_dir(dir_root):
+    links_dot = []
 
-        for file_name in file_names:
-            do_file( os.path.join(dir_path, file_name), out_stream )
+    dir_dot = [
+            'subgraph "cluster_%s" {' % dir_root,
+            '\tlabel = "%s";'         % dir_root
+    ]
 
-        # close directory subgraph
-        out_stream.write('\t}\n')
+    for node_name in os.listdir(dir_root):
+        node_path = os.path.join(dir_root, node_name)
+
+        if os.path.isdir(node_path):
+            (node_dot, inner_links_dot) = do_dir(node_path)
+        if os.path.isfile(node_path) and is_source_file(node_path):
+            (node_dot, inner_links_dot) = do_file(node_path)
+
+        dir_dot   += ['\t'+l for l in node_dot]
+        links_dot += inner_links_dot
+
+    dir_dot += ['}']
+
+    return (dir_dot, links_dot)
+
 
 def source_to_diagram(root_path, dot_diagram_path):
 
+    # open whole graph
+    graph_dot = [ 'digraph class_diagram {' ]
+
+    if os.path.isdir(root_path):
+        (blocks_dot, links_dot) = do_dir(root_path)
+    elif os.path.isfile(root_path):
+        (blocks_dot, links_dot) = do_file(root_path)
+
+    # generate content
+    graph_dot += [ ('\t' + l) for l in (blocks_dot + links_dot) ]
+    # close graph
+    graph_dot += ['}']
+
     with open(dot_diagram_path, 'w') as out_file:
-        # open whole graph
-        out_file.write('digraph G {\n')
-
-        if os.path.isdir(root_path):
-            do_dir(root_path, out_file)
-        elif os.path.isfile(root_path):
-            do_file(root_path, out_file)
-
-        # close whole graph
-        out_file.write('}\n')
+        for l in graph_dot:
+            out_file.write(l + '\n')
 
     return
 
