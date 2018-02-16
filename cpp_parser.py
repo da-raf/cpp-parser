@@ -133,7 +133,7 @@ visibility_space = pp.Group(visibility + pp.Literal(':').suppress() + pp.ZeroOrM
 inheritance = pp.Optional(visibility)('visibility') + identifier('base_class_name')
 inheritance.setParseAction(lambda res: CppInheritance(res.base_class_name, res.visibility if len(res) != 0 else CppHierarchicalTypeDefinition.VISIBILITY_DEFAULT))
 
-type_def = pp.Keyword('typedef') + type_expression('expr') + identifier('name')
+type_def = pp.Keyword('typedef') + pp.Optional(pp.Literal('typename')) + type_expression('expr') + identifier('name')
 type_def.setParseAction(lambda res: CppTypeDefinition(res.expr[0], res.name))
 
 hierarchical_type_def   = pp.Forward()
