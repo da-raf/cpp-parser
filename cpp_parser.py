@@ -22,13 +22,15 @@ reference = pp.Literal('*').setParseAction( pp.replaceWith(CppPointerTypeExpress
 # member function on const object
 const_function    = pp.Keyword('const'  ).setParseAction( pp.replaceWith(FunctionArgs.CONST_FUNCTION     ) )
 virtual_function  = pp.Keyword('virtual').setParseAction( pp.replaceWith(FunctionArgs.VIRTUAL_FUNCTION   ) )
+inline_function   = pp.Keyword('inline' ).setParseAction( pp.replaceWith(FunctionArgs.INLINE_FUNCTION) )
+
 destructor_tag    = pp.Literal('~'      ).setParseAction( pp.replaceWith(FunctionArgs.DESTRUCTOR_FUNCTION) )
 abstract_function = (pp.Literal('=') + pp.Literal('0')).setParseAction( pp.replaceWith(FunctionArgs.ABSTRACT_FUNCTION))
-inline_function   = pp.Keyword('inline').setParseAction( pp.replaceWith(FunctionArgs.INLINE_FUNCTION) )
 
-hierarchical_type = pp.Keyword('class' ).setParseAction(pp.replaceWith(CppHierarchicalTypeDefinition.CLASS )) \
+hierarchical_type_kind = pp.Keyword('class' ).setParseAction(pp.replaceWith(CppHierarchicalTypeDefinition.CLASS )) \
              | pp.Keyword('struct').setParseAction(pp.replaceWith(CppHierarchicalTypeDefinition.STRUCT)) \
              | pp.Keyword('union' ).setParseAction(pp.replaceWith(CppHierarchicalTypeDefinition.UNION ))
+
 enum_type = pp.Keyword('enum')
 
 int_value = pp.Optional(pp.Literal('+') | pp.Literal('-'))('sign') + pp.Word(pp.nums)('value')
@@ -43,23 +45,30 @@ value_expression = pp.Forward()
 signer = pp.Keyword('unsigned') | pp.Keyword('signed')
 signable = pp.Keyword('char') | pp.Keyword('short') | pp.Keyword('int') \
          | pp.Keyword('long') | pp.Keyword('float') | pp.Keyword('double')
-base_type = (pp.Optional(signer) + signable) | signer | pp.Keyword('void')
+base_type = (pp.Optional(signer) + signable) | signer | pp.Keyword('bool') | pp.Keyword('void')
 base_type.setParseAction( lambda tokens: ' '.join(tokens) )
+
 
 # all type names
 #
 # type expressions can be recursive due to templates
 # TODO: don't suppress hierarchical type
 type_expression = pp.Forward()
-type_expression <<= (pp.ZeroOrMore(persistency | volatility).setParseAction(
-                    sum # collapse all bitmasks into a single one
-                )('args') \
-                + pp.Group(base_type | (pp.Optional(hierarchical_type).suppress() + identifier + pp.ZeroOrMore(pp.Literal('::') + identifier)).setParseAction( lambda tokens: ''.join(tokens) ))('name') \
-                + pp.Optional(
-                      pp.Literal('<').suppress() \
-                    + csl(type_expression + pp.ZeroOrMore(ref), 1) \
-                    + pp.Literal('>').suppress()
-                )('template')
+
+template_param = type_expression + pp.ZeroOrMore(ref)
+template = pp.Literal('<').suppress() + csl(template_param, 1) + pp.Literal('>').suppress()
+
+general_flags = pp.ZeroOrMore(persistency | volatility).setParseAction(sum)
+# sum: combine bitmasks
+
+hierarchical_type = (
+          pp.Optional(hierarchical_type_kind).suppress() \
+        + identifier + pp.ZeroOrMore(pp.Literal('::') + identifier)
+).setParseAction( lambda tokens: ''.join(tokens) )
+
+type_expression <<= (general_flags('args') \
+                + pp.Group(base_type | hierarchical_type)('name') \
+                + pp.Optional(template)('template')
 ).setParseAction( build_type_expression )
 
 # declaration: <type> <address-stars> <var-name> <array-brackets>
@@ -67,7 +76,7 @@ var_decl = type_expression('type_id') \
      + pp.ZeroOrMore( pp.Group(ref) )('refs') + identifier('name') \
      + pp.ZeroOrMore( get_scope('[',']') ).suppress() \
      + pp.Optional(pp.Literal('=').suppress() + pp.SkipTo(pp.Literal(';')))
-var_decl.setParseAction(lambda res: CppVarDeclaration(build_pointer_type_expression(res.type_id[0], res.refs), res.name))
+var_decl.setParseAction(lambda res: CppVarDeclaration(build_pointer_type_expression(res.type_id, res.refs), res.name))
 
 var_decl_list = type_expression('type_id') \
           + csl(
@@ -108,7 +117,7 @@ fun_def = fun_decl('fdecl') \
         + get_scope('{', '}')
 fun_def.setParseAction( build_function_definition )
 
-hierarchical_type_decl = hierarchical_type('struct_type') + identifier('name')
+hierarchical_type_decl = hierarchical_type_kind('struct_type') + identifier('name')
 enum_type_decl = enum_type.suppress() + identifier('name')
 
 friend_decl = pp.Keyword('friend') + csl(fun_def | fun_decl | hierarchical_type_decl | identifier)
