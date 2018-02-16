@@ -1,19 +1,26 @@
 import sys; sys.path.append('..')
 
+import pyparsing as pp
+
 import cpp_parser
 import cpp_lang
 
 import os
 
 
-c_base_types = ['int', 'float', 'double', 'long', 'char', 'bool', 'size_t']
+# in DSO eigen-macros tend to break things
+eigen_macro = 'EIGEN_' + pp.Word(pp.srange("[A-Z_]"))
 
+
+c_base_types = ['char', 'short', 'int', 'long', 'float', 'double', 'size_t']
+cpp_base_types = ['bool'] + c_base_types
 def is_basetype(type_name):
-    return type_name in c_base_types or type_name.startswith('std::')
+    return type_name in cpp_base_types or type_name.startswith('std::')
 
-c_file_extensions = ['h', 'hxx', 'hpp', 'c', 'cxx', 'cpp', 'C']
+c_file_extensions = ['h', 'c']
+cpp_file_extensions = ['hxx', 'hpp', 'cxx', 'cpp', 'C'] + c_file_extensions
 def is_source_file(file_name):
-    for extns in c_file_extensions:
+    for extns in cpp_file_extensions:
         if file_name.endswith('.' + extns):
             return True
     return False
@@ -26,7 +33,7 @@ def filecontent(source_file):
     source_code = ''.join(open(source_file))
 
     # remove comments and preprocessor directives from the code
-    stripped_source = (cpp_parser.comment | cpp_parser.preprocessor).suppress().transformString(source_code)
+    stripped_source = (cpp_parser.comment | cpp_parser.preprocessor | eigen_macro).suppress().transformString(source_code)
     classes = (cpp_parser.hierarchical_type_def | cpp_parser.hierarchical_type_decl).searchString(stripped_source)
     typedefs = cpp_parser.type_def.searchString(stripped_source)
 
