@@ -12,10 +12,11 @@ import os
 eigen_macro = 'EIGEN_' + pp.Word(pp.srange("[A-Z_]"))
 
 
-c_base_types = ['char', 'short', 'int', 'long', 'float', 'double', 'size_t']
+c_base_types = ['char', 'unsigned char', 'short', 'int', 'long', 'float', 'double', 'size_t']
 cpp_base_types = ['bool'] + c_base_types
+# TODO: detect template names
 def is_basetype(type_name):
-    return type_name in cpp_base_types or type_name.startswith('std::')
+    return type_name in cpp_base_types or type_name.startswith('std::') or type_name == 'T'
 
 c_file_extensions = ['h', 'c']
 cpp_file_extensions = ['hxx', 'hpp', 'cxx', 'cpp', 'C'] + c_file_extensions
@@ -55,7 +56,8 @@ def filecontent(source_file):
             if not deriv.base_id:
                 print('WARNING: no class name of base class! %s:%s' % (source_file, c.name))
             else:
-                deriv_list.append( (c.name, deriv.base_id) )
+                if not is_basetype(deriv.base_id):
+                    deriv_list.append( (c.name, deriv.base_id) )
 
         for member in c.member_variables:
             if not member.member_decl:
@@ -71,7 +73,9 @@ def filecontent(source_file):
 
         class_list.append( td.type_name )
         try:
-            deriv_list.append( (td.type_name, td.type_expr.content_name()) )
+            base_id = td.type_expr.content_name()
+            if not is_basetype(base_id):
+                deriv_list.append( (td.type_name, base_id) )
         except AttributeError:
             print('WARNING: received raw parsing data in typedef expression "%s"->"%s" in file "%s"' % (td.type_expr, td.type_name, source_file))
             pass
