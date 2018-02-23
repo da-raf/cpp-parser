@@ -14,9 +14,14 @@ eigen_macro = 'EIGEN_' + pp.Word(pp.srange('[A-Z_]'))
 
 c_base_types = ['char', 'unsigned char', 'short', 'int', 'long', 'float', 'double', 'size_t']
 cpp_base_types = ['bool'] + c_base_types
+vector_type = ['std::vector']
+
 # TODO: detect template names
 def is_basetype(type_name):
     return type_name in cpp_base_types or type_name.startswith('std::') or type_name == 'T'
+
+def is_vector(type_name):
+    return type_name in vector_type
 
 c_file_extensions = ['h', 'c']
 cpp_file_extensions = ['hxx', 'hpp', 'cxx', 'cpp', 'C'] + c_file_extensions
@@ -25,147 +30,221 @@ def is_source_file(file_name):
         if file_name.endswith('.' + extns):
             return True
     return False
+class Node:
+    def __init__(self, path):
+        self.path = path
 
-def filecontent(source_file):
-    class_list = []
-    deriv_list = []
-    links_list = []
+    @staticmethod
+    def load_from_disk(path):
+        if os.path.isfile(path):
+            return File.load_from_disk(path)
+        elif os.path.isdir(path):
+            return Directory.load_from_disk(path)
 
-    source_code = ''.join(open(source_file))
+class Directory(Node):
+    def __init__(self, path, nodes):
+        super(Directory, self).__init__(path)
+        self.nodes = nodes
 
-    # remove comments and preprocessor directives from the code
-    stripped_source = (cpp_parser.comment | cpp_parser.preprocessor | eigen_macro).suppress().transformString(source_code)
+    def render(self):
+        class_dot = [
+                'subgraph "cluster_%s" {' % self.path,
+                '\tlabel = "%s";'         % self.path
+        ]
+        link_dot = []
 
-    # extract class/struct/union definitions and typedefs from the source code
-    classes = cpp_parser.hierarchical_type_def.searchString(stripped_source)
-    typedefs = cpp_parser.type_def.searchString(stripped_source)
+        for n in self.nodes:
+            (node_class_dot, node_link_dot) = n.render()
 
-    for cl in classes:
-        if len(cl) == 1:
-            c = cl[0]
-        else:
-            print('WARNING: received raw parsing result in %s' % source_file)
-            continue
-            #c = cl
+            class_dot += ['\t'+l for l in node_class_dot]
+            link_dot  += node_link_dot
 
-        if not c.name:
-            print('WARNING: no class name! file: %s: %s' % (source_file, repr(c)))
-            continue
+        class_dot += [ '}' ]
 
-        class_list.append(c.name)
+        return (class_dot, link_dot)
 
-        for deriv in c.base_types:
+    @staticmethod
+    def load_from_disk(path):
+        return Directory(path, [Node.load_from_disk(os.path.join(path, name))
+                                    for name in os.listdir(path)
+                                    if is_source_file(os.path.join(path,name))
+                                    or  os.path.isdir(os.path.join(path,name))])
+
+class File(Node):
+    def __init__(self, path, class_defs, type_defs):
+        super(File, self).__init__(path)
+        self.class_defs = class_defs
+        self.type_defs  = type_defs
+
+    def render(self):
+        # open file's subgraph
+        class_dot = [
+                'subgraph "cluster_%s" {' % os.path.basename(self.path),
+                '\tlabel = "%s";'         % os.path.basename(self.path)
+        ]
+        link_dot = []
+
+        for obj_def in self.class_defs + self.type_defs:
+            (obj_class_dot, obj_link_dot) = obj_def.render()
+
+            class_dot += ['\t'+l for l in obj_class_dot]
+            link_dot  += obj_link_dot
+
+        class_dot += ['}']
+
+        return (class_dot, link_dot)
+
+    @staticmethod
+    def load_from_disk(path):
+        source_code = ''.join( open(path) )
+
+        # remove comments and preprocessor directives from the code
+        stripped_source = (cpp_parser.comment | cpp_parser.preprocessor | eigen_macro).suppress().transformString(source_code)
+
+        # extract class/struct/union definitions and typedefs from the source code
+        class_finds = cpp_parser.hierarchical_type_def.searchString(stripped_source)
+        typedef_finds = cpp_parser.type_def.searchString(stripped_source)
+
+        return File(
+                path,
+                [ Class.from_class  (cf[0]) for cf in   class_finds ],
+                [ Class.from_typedef(tf[0]) for tf in typedef_finds ]
+        )
+
+class Class:
+    def __init__(self, identifier, base_classes, members):
+        self.identifier = identifier
+        self.base_classes = base_classes
+        self.members = members
+
+    def render(self):
+        class_dot = ['"%s" [shape=box];' % self.identifier]
+        link_dot  = []
+
+        # draw arrows to base classes
+        for base_class in self.base_classes:
+            # suppress inheritances into the standard library
+            if not is_basetype(base_class):
+                link_dot.append(
+                    '"%s" -> "%s" [arrowhead=onormal];' % (self.identifier, base_class)
+                )
+
+        for member in self.members:
+            (member_class_dot, member_link_dot) = member.render()
+            class_dot += member_class_dot
+            link_dot  += member_link_dot
+
+        return (class_dot, link_dot)
+
+    @staticmethod
+    def from_class(class_obj):
+        identifier = class_obj.name
+        base_classes = []
+        member_associations = []
+
+        # collect base class identifiers
+        for deriv in class_obj.base_types:
             if not deriv.base_id:
-                print('WARNING: no class name of base class! %s:%s' % (source_file, c.name))
+                print('BUG: %s - base class name empty!' % identifier)
+                continue
             else:
-                if not is_basetype(deriv.base_id):
-                    deriv_list.append( (c.name, deriv.base_id) )
+                base_classes.append( deriv.base_id )
 
-        for member in c.member_variables:
+        # collect member type identifiers
+        for member in class_obj.member_variables:
             if not member.member_decl:
-                print('WARNING: missing member declaration! %s:%s' % (source_file, c.name))
-            else:
-                member_type_name = member.member_decl.data_type.content_name()
-                if not is_basetype(member_type_name):
-                    links_list.append( (c.name, member_type_name) )
+                print('BUG: %s - missing member declaration!' % identifier)
+                continue
+            member_associations.append(
+                    DirectedAssociation.from_decl(identifier, member.member_decl)
+            )
 
-    for td in typedefs:
-        # unpack
-        td = td[0]
+        return Class(identifier, base_classes, member_associations)
 
-        class_list.append( td.type_name )
+    @staticmethod
+    def from_typedef(typedef_obj):
+        identifier = typedef_obj.type_name
+
         try:
-            base_id = td.type_expr.content_name()
-            if not is_basetype(base_id):
-                deriv_list.append( (td.type_name, base_id) )
+            base_classes = [ typedef_obj.type_expr.content_name() ]
         except AttributeError:
-            print('WARNING: received raw parsing data in typedef expression "%s"->"%s" in file "%s"' % (td.type_expr, td.type_name, source_file))
-            pass
-    
-    return (class_list, deriv_list, links_list)
+            print('BUG: received raw parsing data in typedef expression "%s"->"%s"' % (typedef_obj.type_expr, identifier))
+            return None
 
-def filecontent2dot(source_file):
-    (class_list, deriv_list, assoc_list) = filecontent(source_file)
+        return Class(identifier, base_classes, [])
 
-    class_dot = ['"%s" [shape=box];' % cn for cn in class_list]
-    deriv_dot = ['"%s" -> "%s" [arrowhead=onormal];' % (bn, bcn) for (bn, bcn) in deriv_list]
-    assoc_dot = ['"%s" -> "%s";' % (cn, acn) for (cn, acn) in assoc_list]
+class DirectedAssociation:
+    def __init__(self, orig_class_name, target_class_name, assoc_name):
+        self.orig_class_name = orig_class_name
+        self.target_class_name = target_class_name
+        self.assoc_name = assoc_name
 
-    # concatenate list of dot links
-    # we can treat them identically from now on, since we already did the formatting
-    return (class_dot, deriv_dot + assoc_dot)
+    def render(self):
+        if not is_basetype(self.target_class_name):
+            link_dot = ['"%s" -> "%s";' % (self.orig_class_name, self.target_class_name)]
+        else:
+            link_dot = []
+        return ([], link_dot)
 
-def do_file(file_path):
-    (classes_dot, links_dot) = filecontent2dot( file_path )
+    @staticmethod
+    def from_decl(orig_class_name, member_decl):
+        member_type  = member_decl.data_type
+        member_ident = member_decl.identifier
+        member_type_name = member_type.content_name()
 
-    if len(classes_dot) == 0:
-        return ([], [])
+        if is_vector(member_type_name):
+            try:
+                # use first template element
+                template_type_name = member_type.template_args[0].content_name()
+                # TODO: mark multiplicity
+                return DirectedAssociation(orig_class_name, template_type_name, member_ident)
+            except IndexError:
+                print('BUG/WARNING: %s - member %s has vector type %s with empty template!' % (orig_class_name, member_ident, member_type_name))
+                return None
 
-    # open file's subgraph
-    file_dot = [
-            'subgraph "cluster_%s" {' % os.path.basename(file_path),
-            '\tlabel = "%s";'         % os.path.basename(file_path)
-    ] + ['\t'+class_dot for class_dot in classes_dot] + ['}']
-
-    return (file_dot, links_dot)
-
-
-def do_dir(dir_root):
-    links_dot = []
-
-    dir_dot = [
-            'subgraph "cluster_%s" {' % dir_root,
-            '\tlabel = "%s";'         % dir_root
-    ]
-
-    for node_name in os.listdir(dir_root):
-        node_path = os.path.join(dir_root, node_name)
-
-        if os.path.isdir(node_path):
-            (node_dot, inner_links_dot) = do_dir(node_path)
-        if os.path.isfile(node_path) and is_source_file(node_path):
-            (node_dot, inner_links_dot) = do_file(node_path)
-
-        dir_dot   += ['\t'+l for l in node_dot]
-        links_dot += inner_links_dot
-
-    dir_dot += ['}']
-
-    return (dir_dot, links_dot)
+        else:
+            return DirectedAssociation(orig_class_name, member_type_name, member_ident)
 
 
-def source_to_diagram_file(source_paths, dot_diagram_path):
+class Diagram:
 
-    # open whole graph
-    graph_dot = [ 'digraph class_diagram {' ]
+    # methods of Diagram class
+    def __init__(self):
+        self.roots = []
 
-    # accumulate all linkings and only append them at the end
-    # We need this, so that nodes are defined in their cluster first
-    # and we don't get runaway nodes outside.
-    linking_dot = []
+    def add_path(self, path):
+        self.roots.append( Node.load_from_disk(path) )
 
-    for source_path in source_paths:
-        if   os.path.isdir(source_path):
-            (blocks_dot, links_dot) = do_dir(source_path)
-        elif os.path.isfile(source_path):
-            (blocks_dot, links_dot) = do_file(source_path)
+    def render(self):
+        class_dot = []
+        link_dot = []
 
-        # generate content
-        graph_dot += [ ('\t' + l) for l in blocks_dot ]
+        for node in self.roots:
+            (node_class_dot, node_link_dot) = node.render()
+            class_dot += node_class_dot
+            link_dot  += node_link_dot
 
-        linking_dot += links_dot
+        graph_dot  = [ 'digraph class_diagram {' ]
+        graph_dot += [ ('\t' + l) for l in class_dot ]
+        graph_dot += [ ('\t' + l) for l in  link_dot ]
+        graph_dot += [ '}' ]
 
-    # insert links into graph
-    graph_dot += [ ('\t' + l) for l in linking_dot ]
+        return graph_dot
 
-    # close graph
-    graph_dot += ['}']
+    def render_file(self, file_path):
+        with open(file_path, 'w') as f:
+            for l in self.render():
+                f.write(l)
+        return
 
-    with open(dot_diagram_path, 'w') as out_file:
-        for l in graph_dot:
-            out_file.write(l + '\n')
+    @staticmethod
+    def from_pathlist(paths):
+        d = Diagram()
 
-    return
+        for path in paths:
+            d.add_path(path)
+
+        return d
 
 
 if __name__ == '__main__':
@@ -187,5 +266,6 @@ if __name__ == '__main__':
     )
     args = parser.parse_args()
 
-    source_to_diagram_file(args.sources, args.output_file)
+    diag = Diagram.from_pathlist(args.sources)
+    diag.render_file(args.output_file)
 
