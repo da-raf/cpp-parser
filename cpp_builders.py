@@ -6,7 +6,7 @@ from cpp_lang import *
 def build_type_expression(tokens):
     name = tokens.name[0]
     args = tokens.args
-    templates = [tokens.template[0]] if tokens.template else []
+    templates = tokens.template
 
     return CppTypeExpression(name, args, templates)
 
@@ -75,6 +75,7 @@ def build_hierarchical_type(res):
     base_types = []
     for inh in res.base_classes:
         try:
+            print('BUG: %s\'s base class %s in list!' % (res.name, inh[0].base_id))
             base_types.append(inh[0])
         except IndexError:
             base_types.append(inh)
