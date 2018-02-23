@@ -30,6 +30,8 @@ def is_source_file(file_name):
         if file_name.endswith('.' + extns):
             return True
     return False
+
+
 class Node:
     def __init__(self, path):
         self.path = path
@@ -41,12 +43,16 @@ class Node:
         elif os.path.isdir(path):
             return Directory.load_from_disk(path)
 
+
 class Directory(Node):
     def __init__(self, path, nodes):
         super(Directory, self).__init__(path)
         self.nodes = nodes
 
-    def render(self):
+    def internals(self):
+        return ( internal for node in self.nodes for internal in node.internals() )
+
+    def render(self, keep_only=None):
         class_dot = [
                 'subgraph "cluster_%s" {' % self.path,
                 '\tlabel = "%s";'         % self.path
@@ -54,7 +60,7 @@ class Directory(Node):
         link_dot = []
 
         for n in self.nodes:
-            (node_class_dot, node_link_dot) = n.render()
+            (node_class_dot, node_link_dot) = n.render(keep_only)
 
             class_dot += ['\t'+l for l in node_class_dot]
             link_dot  += node_link_dot
@@ -70,13 +76,17 @@ class Directory(Node):
                                     if is_source_file(os.path.join(path,name))
                                     or  os.path.isdir(os.path.join(path,name))])
 
+
 class File(Node):
     def __init__(self, path, class_defs, type_defs):
         super(File, self).__init__(path)
         self.class_defs = class_defs
         self.type_defs  = type_defs
 
-    def render(self):
+    def internals(self):
+        return ( internal for obj_def in (self.class_defs + self.type_defs) for internal in obj_def.internals() )
+
+    def render(self, keep_only=None):
         # open file's subgraph
         class_dot = [
                 'subgraph "cluster_%s" {' % os.path.basename(self.path),
@@ -85,7 +95,7 @@ class File(Node):
         link_dot = []
 
         for obj_def in self.class_defs + self.type_defs:
-            (obj_class_dot, obj_link_dot) = obj_def.render()
+            (obj_class_dot, obj_link_dot) = obj_def.render(keep_only)
 
             class_dot += ['\t'+l for l in obj_class_dot]
             link_dot  += obj_link_dot
@@ -111,18 +121,28 @@ class File(Node):
                 [ Class.from_typedef(tf[0]) for tf in typedef_finds ]
         )
 
+
 class Class:
     def __init__(self, identifier, base_classes, members):
         self.identifier = identifier
         self.base_classes = base_classes
         self.members = members
 
-    def render(self):
+    def internals(self):
+        return [ self.identifier ]
+
+    def render(self, keep_only=None):
+        if keep_only is not None and self.identifier not in keep_only:
+            return ([], [])
+
         class_dot = ['"%s" [shape=box];' % self.identifier]
         link_dot  = []
 
         # draw arrows to base classes
         for base_class in self.base_classes:
+            if keep_only is not None and base_class not in keep_only:
+                continue
+
             # suppress inheritances into the standard library
             if not is_basetype(base_class):
                 link_dot.append(
@@ -130,7 +150,7 @@ class Class:
                 )
 
         for member in self.members:
-            (member_class_dot, member_link_dot) = member.render()
+            (member_class_dot, member_link_dot) = member.render(keep_only)
             class_dot += member_class_dot
             link_dot  += member_link_dot
 
@@ -173,13 +193,16 @@ class Class:
 
         return Class(identifier, base_classes, [])
 
+
 class DirectedAssociation:
     def __init__(self, orig_class_name, target_class_name, assoc_name):
         self.orig_class_name = orig_class_name
         self.target_class_name = target_class_name
         self.assoc_name = assoc_name
 
-    def render(self):
+    def render(self, keep_only=None):
+        if keep_only is not None and self.target_class_name not in keep_only:
+            return ([], [])
         if not is_basetype(self.target_class_name):
             link_dot = ['"%s" -> "%s";' % (self.orig_class_name, self.target_class_name)]
         else:
@@ -215,12 +238,15 @@ class Diagram:
     def add_path(self, path):
         self.roots.append( Node.load_from_disk(path) )
 
-    def render(self):
+    def internals(self):
+        return (internal for root in self.roots for internal in root.internals())
+
+    def render(self, keep_only=None):
         class_dot = []
         link_dot = []
 
         for node in self.roots:
-            (node_class_dot, node_link_dot) = node.render()
+            (node_class_dot, node_link_dot) = node.render(keep_only)
             class_dot += node_class_dot
             link_dot  += node_link_dot
 
@@ -231,10 +257,15 @@ class Diagram:
 
         return graph_dot
 
-    def render_file(self, file_path):
+    def render_file(self, file_path, with_externals=False):
         with open(file_path, 'w') as f:
-            for l in self.render():
-                f.write(l)
+            if with_externals:
+                for l in self.render():
+                    f.write(l)
+            else:
+                ints = list(self.internals())
+                for l in self.render(keep_only=ints):
+                    f.write(l)
         return
 
     @staticmethod
