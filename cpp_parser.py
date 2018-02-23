@@ -76,7 +76,7 @@ var_decl = type_expression('type_id') \
      + pp.ZeroOrMore( pp.Group(ref) )('refs') + identifier('name') \
      + pp.ZeroOrMore( get_scope('[',']') ).suppress() \
      + pp.Optional(pp.Literal('=').suppress() + pp.SkipTo(pp.Literal(';')))
-var_decl.setParseAction(lambda res: CppVarDeclaration(build_pointer_type_expression(res.type_id, res.refs), res.name))
+var_decl.setParseAction(lambda res: CppVarDeclaration(build_pointer_type_expression(res.type_id[0], res.refs), res.name))
 
 var_decl_list = type_expression('type_id') \
           + csl(
@@ -128,7 +128,7 @@ visibility = pp.Keyword('private'  ).setParseAction( pp.replaceWith( CppHierarch
            | pp.Keyword('public'   ).setParseAction( pp.replaceWith( CppHierarchicalTypeDefinition.VISIBILITY_PUBLIC    ) ) \
            | pp.Keyword('protected').setParseAction( pp.replaceWith( CppHierarchicalTypeDefinition.VISIBILITY_PROTECTED ) )
 
-visibility_space = pp.Group(visibility + pp.Literal(':').suppress() + pp.ZeroOrMore(fun_def | (decl + pp.Literal(';').suppress()) | (identifier + pp.Literal(';'))))
+visibility_space = pp.Group(visibility + pp.Literal(':').suppress() + pp.ZeroOrMore(fun_def | (pp.Optional(decl) + pp.Literal(';').suppress()) | (identifier + pp.Literal(';'))))
 
 inheritance = pp.Optional(visibility)('visibility') + identifier('base_class_name')
 inheritance.setParseAction(lambda res: CppInheritance(res.base_class_name, res.visibility if len(res) != 0 else CppHierarchicalTypeDefinition.VISIBILITY_DEFAULT))
@@ -140,7 +140,7 @@ hierarchical_type_def   = pp.Forward()
 hierarchical_type_def <<= pp.Optional(visibility) + hierarchical_type_decl('decl') + \
               pp.Optional(pp.Group(pp.Literal(':').suppress() + csl(inheritance)))('base_classes') \
             + pp.Literal('{') \
-                + pp.Group(pp.ZeroOrMore(fun_def | (decl + pp.Literal(';').suppress())))('default_vis_space') \
+                + pp.Group(pp.ZeroOrMore(fun_def | (pp.Optional(decl) + pp.Literal(';').suppress())))('default_vis_space') \
                 + pp.ZeroOrMore(visibility_space)('vis_spaces') \
                 + pp.SkipTo(pp.Literal('}'), ignore=get_scope('{','}')) \
             + pp.Literal('}')
