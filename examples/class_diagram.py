@@ -134,18 +134,30 @@ def do_dir(dir_root):
     return (dir_dot, links_dot)
 
 
-def source_to_diagram(root_path, dot_diagram_path):
+def source_to_diagram_file(source_paths, dot_diagram_path):
 
     # open whole graph
     graph_dot = [ 'digraph class_diagram {' ]
 
-    if os.path.isdir(root_path):
-        (blocks_dot, links_dot) = do_dir(root_path)
-    elif os.path.isfile(root_path):
-        (blocks_dot, links_dot) = do_file(root_path)
+    # accumulate all linkings and only append them at the end
+    # We need this, so that nodes are defined in their cluster first
+    # and we don't get runaway nodes outside.
+    linking_dot = []
 
-    # generate content
-    graph_dot += [ ('\t' + l) for l in (blocks_dot + links_dot) ]
+    for source_path in source_paths:
+        if   os.path.isdir(source_path):
+            (blocks_dot, links_dot) = do_dir(source_path)
+        elif os.path.isfile(source_path):
+            (blocks_dot, links_dot) = do_file(source_path)
+
+        # generate content
+        graph_dot += [ ('\t' + l) for l in blocks_dot ]
+
+        linking_dot += links_dot
+
+    # insert links into graph
+    graph_dot += [ ('\t' + l) for l in linking_dot ]
+
     # close graph
     graph_dot += ['}']
 
@@ -164,15 +176,16 @@ if __name__ == '__main__':
             description='construct a class diagram in dot-format from C++ source'
     )
     parser.add_argument(
-            'source_tree_root',
-            help='single file or directory in which the source is stored'
-    )
-    parser.add_argument(
             'output_file',
             default='out.dot',
             help='the file to which the dot-graph will be written'
     )
+    parser.add_argument(
+            '--sources',
+            nargs='+',
+            help='single file or directory in which the source is stored'
+    )
     args = parser.parse_args()
 
-    source_to_diagram(args.source_tree_root, args.output_file)
+    source_to_diagram_file(args.sources, args.output_file)
 
