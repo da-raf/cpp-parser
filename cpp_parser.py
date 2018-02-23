@@ -55,7 +55,7 @@ base_type.setParseAction( lambda tokens: ' '.join(tokens) )
 # TODO: don't suppress hierarchical type
 type_expression = pp.Forward()
 
-template_param = type_expression + pp.ZeroOrMore(ref)
+template_param = (type_expression + pp.ZeroOrMore(ref)) | int_value | long_value
 template = pp.Literal('<').suppress() + csl(template_param, 1) + pp.Literal('>').suppress()
 
 general_flags = pp.ZeroOrMore(persistency | volatility).setParseAction(sum)
