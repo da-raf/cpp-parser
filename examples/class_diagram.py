@@ -9,7 +9,7 @@ import os
 
 
 # in DSO eigen-macros tend to break things
-eigen_macro = 'EIGEN_' + pp.Word(pp.srange("[A-Z_]"))
+eigen_macro = 'EIGEN_' + pp.Word(pp.srange('[A-Z_]'))
 
 
 c_base_types = ['char', 'unsigned char', 'short', 'int', 'long', 'float', 'double', 'size_t']
@@ -35,7 +35,9 @@ def filecontent(source_file):
 
     # remove comments and preprocessor directives from the code
     stripped_source = (cpp_parser.comment | cpp_parser.preprocessor | eigen_macro).suppress().transformString(source_code)
-    classes = (cpp_parser.hierarchical_type_def | cpp_parser.hierarchical_type_decl).searchString(stripped_source)
+
+    # extract class/struct/union definitions and typedefs from the source code
+    classes = cpp_parser.hierarchical_type_def.searchString(stripped_source)
     typedefs = cpp_parser.type_def.searchString(stripped_source)
 
     for cl in classes:
