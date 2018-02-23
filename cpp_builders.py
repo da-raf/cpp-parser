@@ -71,7 +71,13 @@ def build_hierarchical_type(res):
     member_vars = []
     methods = []
 
-    base_types = res.base_classes if res.base_classes else []
+    # very unsatisfying! Why do we sometimes get a list and sometimes not?
+    base_types = []
+    for inh in res.base_classes:
+        try:
+            base_types.append(inh[0])
+        except IndexError:
+            base_types.append(inh)
 
     for dec in res.default_vis_space:
         if type(dec) == CppVarDeclaration:
