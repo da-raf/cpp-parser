@@ -77,11 +77,12 @@ class CppMember:
         self.vis = visibility
 
 class CppFunctionDeclaration:
-    def __init__(self, name, return_type, params, args):
+    def __init__(self, name, return_type, params, args, template_params=[]):
         self.name = name
         self.return_type = return_type
         self.params = params
         self.args = args
+        self.template_params = template_params
 
     def isAbstract(self):
         return bool(self.args & FunctionArgs.ABSTRACT_FUNCTION)
@@ -98,6 +99,9 @@ class CppFunctionDeclaration:
 
     def isInline(self):
         return bool(self.args & FunctionArgs.INLINE_FUNCTION)
+
+    def isTemplate(self):
+        return bool(self.template_params)
 
     def isVirtual(self):
         return bool(self.args & FunctionArgs.VIRTUAL_FUNCTION)
