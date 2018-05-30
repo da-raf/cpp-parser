@@ -206,7 +206,7 @@ class DirectedAssociation:
         if keep_only is not None and self.target_class_name not in keep_only:
             return ([], [])
         if not is_basetype(self.target_class_name):
-            link_dot = ['"%s" -> "%s";' % (self.orig_class_name, self.target_class_name)]
+            link_dot = ['"%s" -> "%s" [label="%s"];' % (self.orig_class_name, self.target_class_name, self.assoc_name)]
         else:
             link_dot = []
         return ([], link_dot)
