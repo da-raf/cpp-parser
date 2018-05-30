@@ -291,12 +291,12 @@ if __name__ == '__main__':
             help='the file to which the dot-graph will be written'
     )
     parser.add_argument(
-            '--sources',
+            'source_files',
             nargs='+',
-            help='single file or directory in which the source is stored'
+            help='files or directories in which contain the source code to render'
     )
     args = parser.parse_args()
 
-    diag = Diagram.from_pathlist(args.sources)
+    diag = Diagram.from_pathlist(args.source_files)
     diag.render_file(args.output_file)
 
