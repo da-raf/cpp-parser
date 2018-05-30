@@ -262,12 +262,10 @@ class Diagram:
     def render_file(self, file_path, with_externals=False):
         with open(file_path, 'w') as f:
             if with_externals:
-                for l in self.render():
-                    f.write(l)
+                f.write( '\n'.join(self.render()) )
             else:
                 ints = list(self.internals())
-                for l in self.render(keep_only=ints):
-                    f.write(l)
+                f.write( '\n'.join(self.render(keep_only=ints)) )
         return
 
     @staticmethod
